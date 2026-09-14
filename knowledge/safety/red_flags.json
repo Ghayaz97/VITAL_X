@@ -1,0 +1,10 @@
+{
+  "rules": [
+    {
+      "id": "RF-CHEST-DYSPNOEA",
+      "trigger": ["symptom.chest_pain", "symptom.dyspnoea"],
+      "action": "PRIORITY_CLINICAL_REVIEW",
+      "note": "Escalation only; not a diagnosis. Validate before deployment."
+    }
+  ]
+}

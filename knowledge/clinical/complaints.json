@@ -1,0 +1,12 @@
+{
+  "complaints": {
+    "symptom.chest_pain": {
+      "name": "Chest pain",
+      "follow_up_fields": ["onset", "character", "location", "radiation", "aggravating_factors", "relieving_factors", "associated_symptoms"]
+    },
+    "symptom.fever": {
+      "name": "Fever",
+      "follow_up_fields": ["onset", "duration", "pattern", "associated_symptoms"]
+    }
+  }
+}

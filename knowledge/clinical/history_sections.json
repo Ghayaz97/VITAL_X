@@ -1,0 +1,14 @@
+{
+  "sections": [
+    "chief_complaint",
+    "history_of_present_illness",
+    "past_medical_history",
+    "past_surgical_history",
+    "drug_history",
+    "allergy_history",
+    "family_history",
+    "personal_history",
+    "review_of_systems",
+    "prior_investigations"
+  ]
+}
