@@ -1,9 +1,19 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.core.config import settings
+from app.db import init_db
 
-app = FastAPI(title="VITAL-X API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialise database tables before serving any requests."""
+    init_db()
+    yield
+
+
+app = FastAPI(title="VITAL-X API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,7 +24,3 @@ app.add_middleware(
 )
 
 app.include_router(router)
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "service": "vital-x-api", "version": "0.1.0"}

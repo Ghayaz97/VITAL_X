@@ -1,4 +1,250 @@
+/* VITAL-X Clinical Verification Console — Refined Dark Medical Theme */
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #f5f7f8; color: #102a24; }
-button { cursor: pointer; }
-.card { background: white; border: 1px solid #dce5e1; border-radius: 18px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,.05); }
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #0b0f19;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { cursor: pointer; border: none; font-family: inherit; }
+input, select, textarea { font-family: inherit; }
+
+.app-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+/* Header */
+.app-header {
+  background: #131b2e;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 14px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.brand-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #10b981;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: #1e293b;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 6px;
+  background: #0f172a;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+}
+
+.nav-tab {
+  padding: 7px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: #94a3b8;
+  transition: all 0.15s ease;
+}
+
+.nav-tab.active {
+  background: #10b981;
+  color: #0f172a;
+}
+
+/* Cards & Surfaces */
+.card {
+  background: #131b2e;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+.card-header {
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #f8fafc;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Form Inputs */
+.form-group { margin-bottom: 16px; }
+
+.form-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #0f172a;
+  color: #f8fafc;
+  transition: border-color 0.15s ease;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  outline: none;
+  border-color: #10b981;
+}
+
+/* Buttons */
+.btn {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.btn-emerald { background: #10b981; color: #0f172a; }
+.btn-emerald:hover { background: #059669; color: white; }
+
+.btn-amber { background: #d97706; color: white; }
+.btn-amber:hover { background: #b45309; }
+
+.btn-dark { background: #1e293b; color: #f8fafc; border: 1px solid #334155; }
+.btn-dark:hover { background: #334155; }
+
+.btn-danger { background: #ef4444; color: white; }
+.btn-danger:hover { background: #dc2626; }
+
+.btn-sm { width: auto; padding: 6px 14px; font-size: 12px; }
+
+/* Grid Layout */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+/* Queue List */
+.queue-item {
+  padding: 12px 14px;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  background: #0f172a;
+  transition: all 0.15s ease;
+}
+
+.queue-item:hover, .queue-item.active {
+  border-color: #10b981;
+  background: #172554;
+}
+
+/* Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-conflict { background: #450a0a; color: #fca5a5; border: 1px solid #991b1b; }
+.badge-clear { background: #064e3b; color: #6ee7b7; border: 1px solid #047857; }
+.badge-tag { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
+
+/* Truth Engine Surface Banner */
+.truth-surface {
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.truth-conflict-banner {
+  background: #1c1017;
+  border: 1px solid #991b1b;
+  color: #fca5a5;
+}
+
+.truth-clear-banner {
+  background: #062c21;
+  border: 1px solid #047857;
+  color: #6ee7b7;
+}
+
+/* Evidence Comparison Grid */
+.evidence-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 14px 0;
+}
+
+@media (max-width: 600px) {
+  .evidence-grid { grid-template-columns: 1fr; }
+}
+
+.evidence-card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.evidence-card.conflict-source {
+  border-color: #7f1d1d;
+}
+
+/* Mic Button Listening Animation */
+.mic-listening {
+  animation: pulse-ring 1.5s infinite;
+  background: #ef4444 !important;
+  color: white !important;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
