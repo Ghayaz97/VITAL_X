@@ -1,12 +1,39 @@
+# Environments
 .env
 .env.*
 !.env.example
+
+# Python
 __pycache__/
-*.py[cod]
-.pytest_cache/
+*.pyc
+.venv/
+venv/
+env/
+
+# Node
 node_modules/
 .next/
-dist/
+out/
+
+# Testing & Logs
+.pytest_cache/
 coverage/
-.DS_Store
 *.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific (Do not commit patient data)
+uploads/
+tmp/
+runtime/
+data/demo/local_overrides/
+# Project specific security (Do not commit patient data)
+uploads/
+tmp/
+runtime/
+data/demo/local_overrides/
+.env
+.env.*
+!.env.example
