@@ -7,8 +7,22 @@ from sqlalchemy import create_engine, Column, String, Float, Boolean, Text, Inte
 from sqlalchemy.orm import sessionmaker, declarative_base
 from datetime import datetime, timezone
 import os
+import tempfile
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./vitalx_v3.db")
+def _get_database_url() -> str:
+    url = os.getenv("DATABASE_URL")
+    if url:
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+psycopg://", 1)
+        if url.startswith("postgresql://") and "+psycopg" not in url:
+            return url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return url
+    if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        tmp_db = os.path.join(tempfile.gettempdir(), "vitalx_v3.db")
+        return f"sqlite:///{tmp_db}"
+    return "sqlite:///./vitalx_v3.db"
+
+DATABASE_URL = _get_database_url()
 
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=_connect_args)

@@ -1,9 +1,16 @@
+import sys
+from pathlib import Path
+
+# Ensure backend root is in Python path for Vercel serverless functions
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.core.config import settings
 from app.db import init_db
+
 
 
 @asynccontextmanager

@@ -40,6 +40,8 @@ interface ConsultStepProps {
   auditTrail: any[];
 }
 
+const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
+
 export default function ConsultStep({
   selectedCase,
   verifyComment,
@@ -75,7 +77,7 @@ export default function ConsultStep({
 
   useEffect(() => {
     if (selectedCase?.session?.session_id) {
-      fetch(`http://localhost:8000/api/v1/sessions/${selectedCase.session.session_id}/summary`)
+      fetch(`${API}/api/v1/sessions/${selectedCase.session.session_id}/summary`)
         .then((res) => res.json())
         .then((data) => setSummaryData(data))
         .catch(() => console.error('Failed to fetch summary'));
