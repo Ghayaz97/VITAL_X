@@ -1,250 +1,222 @@
-/* VITAL-X Clinical Verification Console — Refined Dark Medical Theme */
-* { box-sizing: border-box; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* VITAL-X Production Clinical Intelligence Design System */
+
+/* ── Dark Theme (default) ────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --bg-app: #080c14;
+  --bg-surface: #0f172a;
+  --bg-surface-elevated: #1e293b;
+  --bg-surface-subtle: #131d31;
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-medium: rgba(255, 255, 255, 0.12);
+  --border-focus: #10b981;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+
+  --status-verified-bg: rgba(16, 185, 129, 0.12);
+  --status-verified-border: rgba(16, 185, 129, 0.3);
+  --status-verified-text: #34d399;
+
+  --status-review-bg: rgba(245, 158, 11, 0.12);
+  --status-review-border: rgba(245, 158, 11, 0.3);
+  --status-review-text: #fbbf24;
+
+  --status-conflict-bg: rgba(239, 68, 68, 0.12);
+  --status-conflict-border: rgba(239, 68, 68, 0.3);
+  --status-conflict-text: #f87171;
+
+  color-scheme: dark;
+}
+
+/* ── Light Theme ─────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-app: #f1f5f9;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f8fafc;
+  --bg-surface-subtle: #f0f4f8;
+  --border-subtle: rgba(0, 0, 0, 0.07);
+  --border-medium: rgba(0, 0, 0, 0.12);
+  --border-focus: #059669;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+
+  --status-verified-bg: rgba(16, 185, 129, 0.08);
+  --status-verified-border: rgba(16, 185, 129, 0.25);
+  --status-verified-text: #059669;
+
+  --status-review-bg: rgba(245, 158, 11, 0.08);
+  --status-review-border: rgba(245, 158, 11, 0.25);
+  --status-review-text: #d97706;
+
+  --status-conflict-bg: rgba(239, 68, 68, 0.08);
+  --status-conflict-border: rgba(239, 68, 68, 0.25);
+  --status-conflict-text: #dc2626;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 html, body {
-  margin: 0;
-  padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: #0b0f19;
-  color: #e2e8f0;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-}
-
-button { cursor: pointer; border: none; font-family: inherit; }
-input, select, textarea { font-family: inherit; }
-
-.app-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px 16px;
-}
-
-/* Header */
-.app-header {
-  background: #131b2e;
-  border: 1px solid #1e293b;
-  border-radius: 12px;
-  padding: 14px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.brand-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #10b981;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brand-sub {
-  font-size: 10px;
-  font-weight: 600;
-  color: #94a3b8;
-  background: #1e293b;
-  padding: 3px 8px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.nav-tabs {
-  display: flex;
-  gap: 6px;
-  background: #0f172a;
-  padding: 4px;
-  border-radius: 8px;
-  border: 1px solid #1e293b;
-}
-
-.nav-tab {
-  padding: 7px 16px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  background: transparent;
-  color: #94a3b8;
-  transition: all 0.15s ease;
-}
-
-.nav-tab.active {
-  background: #10b981;
-  color: #0f172a;
-}
-
-/* Cards & Surfaces */
-.card {
-  background: #131b2e;
-  border: 1px solid #1e293b;
-  border-radius: 12px;
-  padding: 20px 24px;
-  margin-bottom: 16px;
-}
-
-.card-header {
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
   font-size: 14px;
-  font-weight: 600;
-  margin-top: 0;
-  margin-bottom: 16px;
-  color: #f8fafc;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Form Inputs */
-.form-group { margin-bottom: 16px; }
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-app);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
 
-.form-label {
-  display: block;
+/* Typography Helpers */
+.font-mono-code {
+  font-family: "SF Mono", Monaco, Inconsolata, "Fira Code", monospace;
+}
+
+/* Smooth Focus States */
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+/* Pulse Animation for Mic */
+@keyframes clinical-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.mic-recording {
+  animation: clinical-pulse 1.8s infinite ease-in-out;
+}
+
+/* Transitions */
+.transition-clinical {
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Entrance Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Staggered children */
+.animate-stagger > * {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.animate-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.animate-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.animate-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.animate-stagger > *:nth-child(5) { animation-delay: 240ms; }
+
+/* Patient kiosk large-touch utilities */
+.touch-target {
+  min-height: 56px;
+  min-width: 56px;
+}
+
+/* Readable step labels */
+.step-label {
   font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #94a3b8;
-  margin-bottom: 6px;
+  color: var(--text-tertiary);
 }
 
-.form-input, .form-select, .form-textarea {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  font-size: 13px;
-  background: #0f172a;
-  color: #f8fafc;
-  transition: border-color 0.15s ease;
+/* Print Stylesheet for OPD Case Sheet */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* Hide non-print areas when printing modal */
+  body > main > *:not(.fixed),
+  header,
+  nav,
+  footer,
+  .no-print {
+    display: none !important;
+  }
 }
 
-.form-input:focus, .form-select:focus, .form-textarea:focus {
-  outline: none;
-  border-color: #10b981;
-}
-
-/* Buttons */
-.btn {
-  width: 100%;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: center;
-  transition: all 0.15s ease;
-}
-
-.btn-emerald { background: #10b981; color: #0f172a; }
-.btn-emerald:hover { background: #059669; color: white; }
-
-.btn-amber { background: #d97706; color: white; }
-.btn-amber:hover { background: #b45309; }
-
-.btn-dark { background: #1e293b; color: #f8fafc; border: 1px solid #334155; }
-.btn-dark:hover { background: #334155; }
-
-.btn-danger { background: #ef4444; color: white; }
-.btn-danger:hover { background: #dc2626; }
-
-.btn-sm { width: auto; padding: 6px 14px; font-size: 12px; }
-
-/* Grid Layout */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 20px;
-}
-
-@media (max-width: 900px) {
-  .dashboard-grid { grid-template-columns: 1fr; }
-}
-
-/* Queue List */
-.queue-item {
-  padding: 12px 14px;
-  border: 1px solid #1e293b;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  background: #0f172a;
-  transition: all 0.15s ease;
-}
-
-.queue-item:hover, .queue-item.active {
-  border-color: #10b981;
-  background: #172554;
-}
-
-/* Badges */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.badge-conflict { background: #450a0a; color: #fca5a5; border: 1px solid #991b1b; }
-.badge-clear { background: #064e3b; color: #6ee7b7; border: 1px solid #047857; }
-.badge-tag { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
-
-/* Truth Engine Surface Banner */
-.truth-surface {
-  border-radius: 10px;
-  padding: 16px 20px;
-  margin-bottom: 20px;
-  line-height: 1.5;
-}
-
-.truth-conflict-banner {
-  background: #1c1017;
-  border: 1px solid #991b1b;
-  color: #fca5a5;
-}
-
-.truth-clear-banner {
-  background: #062c21;
-  border: 1px solid #047857;
-  color: #6ee7b7;
-}
-
-/* Evidence Comparison Grid */
-.evidence-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 14px 0;
-}
-
-@media (max-width: 600px) {
-  .evidence-grid { grid-template-columns: 1fr; }
-}
-
-.evidence-card {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  padding: 12px 14px;
-}
-
-.evidence-card.conflict-source {
-  border-color: #7f1d1d;
-}
-
-/* Mic Button Listening Animation */
-.mic-listening {
-  animation: pulse-ring 1.5s infinite;
-  background: #ef4444 !important;
-  color: white !important;
-}
-
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
-  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-}

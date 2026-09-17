@@ -1,11 +1,18 @@
+﻿import './globals.css';
 import type { Metadata } from 'next';
-import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'VITAL-X',
-  description: 'Pre-consultation clinical intake and verification',
+  title: 'VITAL-X — Clinical Case-Taking System',
+  description: 'Evidence-First Multilingual Intake for SIH26047',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" data-theme="dark">
+      <body>{children}</body>
+    </html>
+  );
 }

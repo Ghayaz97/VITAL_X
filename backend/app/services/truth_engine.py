@@ -1,15 +1,15 @@
 """
-Deterministic Truth Engine — Contradiction detection across clinical claim sources.
+VITAL-X Truth Engine & Domain State Evaluator.
 
-Rules:
-1. Groups claims by concept_code.
-2. Compares values across distinct source_types (e.g. patient_voice vs document).
-3. If values differ, generates a CONFLICT record.
-4. Evaluates verification status of each claim:
-   - Claims marked 'PRACTITIONER_REJECT' or 'rejected' are ignored during contradiction checks.
-   - Conflicts where a practitioner has executed a decision ('accept_claim', 'reject_claim', 'keep_both')
-     are marked resolution_status = 'RESOLVED'.
-5. Export is BLOCKED whenever unresolved_conflicts > 0.
+Separates:
+1. CLAIM STATE: UNKNOWN | UNVERIFIED | SUPPORTED | REJECTED | VERIFIED
+2. EVIDENCE RELATIONSHIP: SUPPORTS | CONTRADICTS | DERIVED_FROM | DUPLICATES | REQUIRES_VERIFICATION
+3. CASE INTEGRITY: CLEAR | REVIEW_REQUIRED | CONFLICT | EXPORT_BLOCKED | VERIFIED
+
+Invariants:
+- Rejecting Claim A marks Claim A REJECTED and resolves conflict, but Claim B remains UNVERIFIED/SUPPORTED until practitioner explicitly accepts Claim B.
+- AI-extracted claims NEVER autoverify.
+- Contradictory evidence is NEVER deleted.
 """
 
 from collections import defaultdict
@@ -27,93 +27,181 @@ def _normalise_value(value: Any) -> str:
     return str(value).strip().lower()
 
 
-def detect_conflicts(claims: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Detect contradictory claims across different sources without silently deleting evidence.
-    """
-    # Active claims exclude rejected claims
+def evaluate_claim_state(claim: Dict[str, Any], relationships: List[Dict[str, Any]]) -> str:
+    v_status = str(claim.get("verification_status") or "").upper()
+    val = _normalise_value(claim.get("value"))
+
+    if v_status in ("PRACTITIONER_REJECT", "REJECTED"):
+        return "REJECTED"
+    if v_status in ("PRACTITIONER_ACCEPT", "VERIFIED", "ACCEPTED"):
+        return "VERIFIED"
+    if v_status in ("PRACTITIONER_KEEP_BOTH", "KEEP_BOTH"):
+        return "VERIFIED"
+    if "unknown" in val or "not reported" in val or "unspecified" in val:
+        return "UNKNOWN"
+
+    claim_id = claim.get("claim_id") or claim.get("id")
+    has_support = any(
+        r["relationship_type"] == "SUPPORTS" and (r["source_claim_id"] == claim_id or r["target_claim_id"] == claim_id)
+        for r in relationships
+    )
+    if has_support:
+        return "SUPPORTED"
+
+    return "UNVERIFIED"
+
+
+def detect_evidence_relationships(claims: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    relationships: List[Dict[str, Any]] = []
+
+    for c in claims:
+        claim_id = c.get("claim_id") or c.get("id")
+        ev_id = c.get("evidence_id") or f"EV-{claim_id}"
+        relationships.append({
+            "relationship_id": f"REL-DERIVED-{claim_id}",
+            "source_claim_id": claim_id,
+            "target_claim_id": None,
+            "evidence_id": ev_id,
+            "relationship_type": "DERIVED_FROM",
+            "concept_code": c.get("concept_code"),
+            "description": f"Claim derived from source '{c.get('source_type')}'"
+        })
+
     active_claims = [
         c for c in claims
         if str(c.get("verification_status") or "").upper() not in ("PRACTITIONER_REJECT", "REJECTED")
     ]
 
     grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-    for claim in active_claims:
-        concept = claim.get("concept_code")
+    for c in active_claims:
+        concept = c.get("concept_code")
         if concept:
-            grouped[concept].append(claim)
-
-    conflicts: List[Dict[str, Any]] = []
+            grouped[concept].append(c)
 
     for concept_code, concept_claims in grouped.items():
         if len(concept_claims) < 2:
             continue
 
-        for index, claim_a in enumerate(concept_claims):
-            for claim_b in concept_claims[index + 1:]:
+        for i, claim_a in enumerate(concept_claims):
+            for claim_b in concept_claims[i + 1:]:
+                id_a = claim_a.get("claim_id") or claim_a.get("id")
+                id_b = claim_b.get("claim_id") or claim_b.get("id")
                 val_a = _normalise_value(claim_a.get("value"))
                 val_b = _normalise_value(claim_b.get("value"))
 
-                if val_a == val_b:
-                    continue
-
                 status_a = str(claim_a.get("verification_status") or "").upper()
                 status_b = str(claim_b.get("verification_status") or "").upper()
-
-                # Check if conflict has been resolved by practitioner action
+                
+                # Resolved if at least one claim has practitioner review action executed
                 is_resolved = (
-                    "PRACTITIONER_ACCEPT" in (status_a, status_b) or
-                    "ACCEPTED" in (status_a, status_b) or
-                    "KEEP_BOTH" in (status_a, status_b)
+                    status_a in ("PRACTITIONER_ACCEPT", "PRACTITIONER_REJECT", "PRACTITIONER_KEEP_BOTH", "VERIFIED") or
+                    status_b in ("PRACTITIONER_ACCEPT", "PRACTITIONER_REJECT", "PRACTITIONER_KEEP_BOTH", "VERIFIED")
                 )
 
-                conflict_id = f"CONFLICT-{concept_code.replace('.', '-')}"
+                if val_a == val_b:
+                    relationships.append({
+                        "relationship_id": f"REL-SUPPORTS-{id_a}-{id_b}",
+                        "source_claim_id": id_a,
+                        "target_claim_id": id_b,
+                        "evidence_id": claim_a.get("evidence_id"),
+                        "relationship_type": "SUPPORTS",
+                        "concept_code": concept_code,
+                        "resolution_status": "RESOLVED",
+                        "description": f"Claims from '{claim_a.get('source_type')}' and '{claim_b.get('source_type')}' agree."
+                    })
+                else:
+                    relationships.append({
+                        "relationship_id": f"REL-CONTRADICT-{id_a}-{id_b}",
+                        "source_claim_id": id_a,
+                        "target_claim_id": id_b,
+                        "evidence_id": claim_a.get("evidence_id"),
+                        "relationship_type": "CONTRADICTS",
+                        "concept_code": concept_code,
+                        "resolution_status": "RESOLVED_BY_PRACTITIONER" if is_resolved else "UNRESOLVED",
+                        "severity": "REVIEW_REQUIRED",
+                        "description": (
+                            f"Contradiction detected for '{concept_code}'. "
+                            f"Source '{claim_a.get('source_type')}' states '{claim_a.get('value')}' vs "
+                            f"Source '{claim_b.get('source_type')}' states '{claim_b.get('value')}'."
+                        ),
+                        "evidence_pair": [
+                            {
+                                "claim_id": id_a,
+                                "source_type": claim_a.get("source_type"),
+                                "value": claim_a.get("value"),
+                                "evidence_text": claim_a.get("evidence_text"),
+                                "status": claim_a.get("verification_status")
+                            },
+                            {
+                                "claim_id": id_b,
+                                "source_type": claim_b.get("source_type"),
+                                "value": claim_b.get("value"),
+                                "evidence_text": claim_b.get("evidence_text"),
+                                "status": claim_b.get("verification_status")
+                            }
+                        ]
+                    })
 
-                conflicts.append({
-                    "conflict_id": conflict_id,
-                    "type": "CONTRADICTORY_CLAIMS",
-                    "concept_code": concept_code,
-                    "severity": "REVIEW_REQUIRED",
-                    "claim_ids": [
-                        claim_a.get("claim_id") or claim_a.get("id"),
-                        claim_b.get("claim_id") or claim_b.get("id")
-                    ],
-                    "evidence": [
-                        {
-                            "claim_id": claim_a.get("claim_id") or claim_a.get("id"),
-                            "source_type": claim_a.get("source_type"),
-                            "value": claim_a.get("value"),
-                            "evidence_text": claim_a.get("evidence_text"),
-                            "status": claim_a.get("verification_status")
-                        },
-                        {
-                            "claim_id": claim_b.get("claim_id") or claim_b.get("id"),
-                            "source_type": claim_b.get("source_type"),
-                            "value": claim_b.get("value"),
-                            "evidence_text": claim_b.get("evidence_text"),
-                            "status": claim_b.get("verification_status")
-                        }
-                    ],
-                    "resolution_status": "RESOLVED" if is_resolved else "UNRESOLVED",
-                    "message": (
-                        f"Contradictory evidence for '{concept_code}'. "
-                        f"Patient voice vs Document disagreement."
-                    )
-                })
+    return relationships
 
+
+def detect_conflicts(claims: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    relationships = detect_evidence_relationships(claims)
+    conflicts = []
+    for r in relationships:
+        if r["relationship_type"] == "CONTRADICTS":
+            conflicts.append({
+                "conflict_id": r["relationship_id"],
+                "type": "CONTRADICTORY_CLAIMS",
+                "concept_code": r["concept_code"],
+                "severity": r.get("severity", "REVIEW_REQUIRED"),
+                "claim_ids": [r["source_claim_id"], r["target_claim_id"]],
+                "evidence": r.get("evidence_pair", []),
+                "resolution_status": r["resolution_status"],
+                "message": r["description"]
+            })
     return conflicts
 
 
 def evaluate_truth_state(claims: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Evaluate truth state across all claims in a session.
-    """
-    conflicts = detect_conflicts(claims)
-    unresolved = [c for c in conflicts if c["resolution_status"] == "UNRESOLVED"]
+    relationships = detect_evidence_relationships(claims)
+    
+    for c in claims:
+        st = evaluate_claim_state(c, relationships)
+        c["claim_state"] = st
+
+    unresolved_contradictions = [
+        r for r in relationships
+        if r["relationship_type"] == "CONTRADICTS" and r.get("resolution_status") == "UNRESOLVED"
+    ]
+    
+    active_claims = [
+        c for c in claims
+        if str(c.get("verification_status") or "").upper() not in ("PRACTITIONER_REJECT", "REJECTED")
+    ]
+    unverified_claims = [c for c in active_claims if c.get("claim_state") == "UNVERIFIED"]
+
+    if len(unresolved_contradictions) > 0:
+        case_integrity = "CONFLICT"
+        status = "CONFLICT"
+        export_blocked = True
+    elif len(unverified_claims) > 0:
+        case_integrity = "REVIEW_REQUIRED"
+        status = "REVIEW_REQUIRED"
+        export_blocked = False
+    else:
+        case_integrity = "VERIFIED"
+        status = "CLEAR"
+        export_blocked = False
 
     return {
-        "status": "CONFLICT" if unresolved else "CLEAR",
-        "conflicts": conflicts,
-        "unresolved_conflicts": len(unresolved),
-        "export_blocked": len(unresolved) > 0
+        "status": status,
+        "case_integrity": case_integrity,
+        "conflicts": detect_conflicts(claims),
+        "relationships": relationships,
+        "unresolved_conflicts": len(unresolved_contradictions),
+        "export_blocked": export_blocked,
+        "total_claims": len(claims),
+        "verified_claims_count": sum(1 for c in claims if c.get("claim_state") == "VERIFIED"),
+        "unverified_claims_count": len(unverified_claims)
     }

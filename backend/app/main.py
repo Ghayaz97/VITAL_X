@@ -13,7 +13,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="VITAL-X API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="VITAL-X API", version="0.3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,5 +22,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/health")
+def root_health():
+    """Bare healthcheck endpoint for Docker & health probes."""
+    return {"status": "ok", "service": "vital-x-api", "version": "0.3.0"}
+
 
 app.include_router(router)

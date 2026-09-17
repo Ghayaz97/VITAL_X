@@ -1,22 +1,74 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import AppHeader from './components/layout/AppHeader';
+import RoleSelectionLanding from './components/layout/RoleSelectionLanding';
+import DemoScenarioPicker from './components/demo/DemoScenarioPicker';
+import IdentifyStep from './components/patient/IdentifyStep';
+import ConverseStep from './components/patient/ConverseStep';
+import ScanStep from './components/patient/ScanStep';
+import SummarizeStep from './components/patient/SummarizeStep';
+import ConsultStep from './components/practitioner/ConsultStep';
+import PractitionerWorkspace from './components/practitioner/PractitionerWorkspace';
+import PractitionerLogin from './components/practitioner/PractitionerLogin';
+import SystemDiagnostics from './components/diagnostics/SystemDiagnostics';
+import { useLanguage } from './hooks/useLanguage';
+import { loadSession, logout, PractitionerSession } from './lib/auth';
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
 export default function VitalXPrototype() {
-  const [mode, setMode] = useState<'patient' | 'doctor'>('patient');
-  
+  const { locale, setLocale, tr } = useLanguage();
+  const [mode, setMode] = useState<'landing' | 'patient' | 'doctor'>('landing');
+  const [patientStep, setPatientStep] = useState<number>(1);
+  const [stepHistory, setStepHistory] = useState<number[]>([]);
+  const [showDeveloperTools, setShowDeveloperTools] = useState<boolean>(false);
+
+  // Navigate forward
+  const goToStep = (next: number) => {
+    setStepHistory((h) => [...h, patientStep]);
+    setPatientStep(next);
+  };
+
+  // Navigate back
+  const goBack = () => {
+    setStepHistory((h) => {
+      if (h.length === 0) return h;
+      const prev = h[h.length - 1];
+      setPatientStep(prev);
+      return h.slice(0, -1);
+    });
+  };
+
+
+  // Auth State
+  const [session, setSession] = useState<PractitionerSession | null>(null);
+
+  useEffect(() => {
+    setSession(loadSession());
+  }, []);
+
+  const handleLogin = (newSession: PractitionerSession) => {
+    setSession(newSession);
+  };
+
+  const handleLogout = () => {
+    logout();
+    setSession(null);
+  };
+
   // Patient State
   const [patientId, setPatientId] = useState<string>('PT-SIH-042');
-  const [language, setLanguage] = useState<string>('kn-IN');
+  const [abhaId, setAbhaId] = useState<string>('91-042-4242-88');
   const [sessionId, setSessionId] = useState<string>('');
-  const [consentGiven, setConsentGiven] = useState<boolean>(false);
+  const [consentGiven, setConsentGiven] = useState<boolean>(true);
   const [statement, setStatement] = useState<string>('I have joint pain and no history of diabetes.');
   const [micState, setMicState] = useState<'READY' | 'LISTENING' | 'PROCESSING' | 'COMPLETE' | 'FALLBACK'>('READY');
   const [statusMsg, setStatusMsg] = useState<string>('');
-  const [selectedLocation, setSelectedLocation] = useState<string>('Joints');
-  const [selectedDuration, setSelectedDuration] = useState<string>('3 months');
+  const [loadingSession, setLoadingSession] = useState<boolean>(false);
+  const [docUploaded, setDocUploaded] = useState<boolean>(false);
+  const [redFlags, setRedFlags] = useState<any[]>([]);
+  const [routingState, setRoutingState] = useState<string>('NORMAL');
 
   // Doctor State
   const [queue, setQueue] = useState<any[]>([]);
@@ -24,8 +76,10 @@ export default function VitalXPrototype() {
   const [fhirError, setFhirError] = useState<string>('');
   const [fhirBundle, setFhirBundle] = useState<any>(null);
   const [verifyComment, setVerifyComment] = useState<string>('');
+  const [auditTrail, setAuditTrail] = useState<any[]>([]);
+  const [loadingDemo, setLoadingDemo] = useState<boolean>(false);
 
-  // AYUSH Assessment State
+  // AYUSH State
   const [ayushPrakriti, setAyushPrakriti] = useState<string>('Vata-Pitta');
   const [ayushVikriti, setAyushVikriti] = useState<string>('Vata Kopa');
   const [ayushSara, setAyushSara] = useState<string>('Madhyama');
@@ -37,7 +91,7 @@ export default function VitalXPrototype() {
   const [ayushVyayama, setAyushVyayama] = useState<string>('Madhyama');
   const [ayushVaya, setAyushVaya] = useState<string>('Madhyama (35 yrs)');
 
-  // Speech Recognition Setup
+  // ── Speech Recognition ──────────────────────────────────────────────────
   const startVoiceInput = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -46,7 +100,7 @@ export default function VitalXPrototype() {
     }
     try {
       const recognition = new SpeechRecognition();
-      recognition.lang = language === 'kn-IN' ? 'kn-IN' : language === 'hi-IN' ? 'hi-IN' : 'en-IN';
+      recognition.lang = locale;
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
@@ -67,125 +121,152 @@ export default function VitalXPrototype() {
       recognition.onend = () => {
         if (micState === 'LISTENING') setMicState('READY');
       };
-    } catch (err: any) {
+    } catch {
       setMicState('FALLBACK');
     }
   };
 
-  // ── Patient Actions ──────────────────────────────────────────────────────
-
+  // ── API Actions ────────────────────────────────────────────────────────
   const startSession = async () => {
+    setLoadingSession(true);
     try {
       const res = await fetch(`${API}/api/v1/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ patient_id: patientId, language, consent_given: true })
+        body: JSON.stringify({
+          patient_id: patientId,
+          abha_id: abhaId,
+          language: locale,
+          consent_given: consentGiven,
+        }),
       });
-      if (!res.ok) throw new Error('Failed to create session');
       const data = await res.json();
-      setSessionId(data.session_id);
-      setConsentGiven(true);
-      setStatusMsg(`Session Initialized: ${data.session_id.substring(0, 8)}...`);
-    } catch (err: any) {
-      alert(err.message || 'Error connecting to backend');
+      if (res.ok) {
+        setSessionId(data.session_id);
+        setStatusMsg(`Session initialized: ${data.session_id}`);
+        goToStep(2);
+        refreshDoctorQueue();
+      }
+    } catch {
+      setStatusMsg('Failed to initialize session. Is backend running?');
+    } finally {
+      setLoadingSession(false);
     }
   };
 
-  const submitPatientClaim = async () => {
-    if (!sessionId) return alert('Please initialize session first.');
+  const submitAnswer = async (textAnswer: string, modeInput: 'voice' | 'touch' | 'text') => {
+    if (!sessionId) return;
     try {
-      const isDiabetesNo = statement.toLowerCase().includes('no') && statement.toLowerCase().includes('diabet');
-      const conceptCode = isDiabetesNo ? 'condition.diabetes' : 'symptom.joint_pain';
-      const val = isDiabetesNo ? 'No Diabetes' : `Joint Pain (${selectedLocation}, ${selectedDuration})`;
-
-      const res = await fetch(`${API}/api/v1/sessions/${sessionId}/claims`, {
+      const res = await fetch(`${API}/api/v1/sessions/${sessionId}/interview/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          category: 'clinical',
-          concept_code: conceptCode,
-          value: val,
-          source_type: 'patient_voice',
-          source_id: 'SRC-VOICE-01',
-          evidence_text: statement,
-          language_code: language,
-          input_mode: 'voice'
-        })
+          step_id: 'chief_complaint',
+          answer_text: textAnswer || statement,
+          input_mode: modeInput,
+          language_code: locale,
+        }),
       });
-      if (!res.ok) throw new Error('Failed to record claim');
       const data = await res.json();
-      setStatusMsg(`Clinical statement recorded. Truth Engine Status: ${data.truth_evaluation.status}`);
-    } catch (err: any) {
-      alert(err.message || 'Error submitting statement');
+      if (res.ok) {
+        if (data.safety_signals && data.safety_signals.length > 0) {
+          setRedFlags(data.safety_signals);
+          setRoutingState('URGENT');
+        } else {
+          goToStep(3);
+        }
+        refreshDoctorQueue();
+      }
+    } catch {
+      setStatusMsg('Failed to record answer');
     }
   };
 
-  const uploadMockPrescription = async () => {
-    if (!sessionId) return alert('Please initialize session first.');
+  const uploadMockDoc = async () => {
+    if (!sessionId) return;
     try {
       const res = await fetch(`${API}/api/v1/sessions/${sessionId}/documents/mock-upload`, {
-        method: 'POST'
+        method: 'POST',
       });
-      if (!res.ok) throw new Error('Document mock upload failed');
       const data = await res.json();
-      setStatusMsg(`Previous Prescription Ingested (Prototype OCR Adapter)! Truth Engine Status: ${data.truth_evaluation.status} (EXPORT BLOCKED)`);
-    } catch (err: any) {
-      alert(err.message || 'Error uploading document');
+      if (res.ok) {
+        setDocUploaded(true);
+        setStatusMsg('Document Ingested — Contradiction Generated!');
+        await refreshDoctorQueue();
+        await selectCase(sessionId);
+        goToStep(4);
+      }
+    } catch {
+      setStatusMsg('Failed to upload mock document');
     }
   };
 
-  // ── Doctor Actions ──────────────────────────────────────────────────────
-
-  const fetchQueue = async () => {
+  const refreshDoctorQueue = async () => {
     try {
       const res = await fetch(`${API}/api/v1/doctor/queue`);
-      if (!res.ok) throw new Error('Failed to fetch queue');
-      const data = await res.json();
-      setQueue(data);
-    } catch (err: any) {
-      console.error(err);
+      if (res.ok) {
+        const data = await res.json();
+        setQueue(data);
+      }
+    } catch {
+      console.error('Failed to fetch doctor queue');
     }
   };
 
-  const loadCase = async (id: string) => {
-    setFhirError('');
-    setFhirBundle(null);
+  const selectCase = async (sid: string) => {
     try {
-      const res = await fetch(`${API}/api/v1/doctor/cases/${id}`);
-      if (!res.ok) throw new Error('Failed to load case');
-      const data = await res.json();
-      setSelectedCase(data);
-    } catch (err: any) {
-      alert(err.message);
+      const res = await fetch(`${API}/api/v1/doctor/cases/${sid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedCase(data);
+        fetchAuditTrail(sid);
+      }
+    } catch {
+      console.error('Failed to fetch case details');
     }
   };
 
-  const verifyClaimAction = async (claimId: string, action: string) => {
+  const fetchAuditTrail = async (sid: string) => {
+    try {
+      const res = await fetch(`${API}/api/v1/sessions/${sid}/audit`);
+      if (res.ok) {
+        const data = await res.json();
+        setAuditTrail(data);
+      }
+    } catch {
+      console.error('Failed to fetch audit trail');
+    }
+  };
+
+  const verifyClaim = async (claimId: string, action: string) => {
     if (!selectedCase) return;
+    const sid = selectedCase.session.session_id;
     try {
-      const res = await fetch(`${API}/api/v1/sessions/${selectedCase.session.session_id}/verify`, {
+      const res = await fetch(`${API}/api/v1/sessions/${sid}/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           claim_id: claimId,
           action,
-          practitioner_id: 'DR-AYUSH-01',
-          comment: verifyComment || 'Practitioner review decision applied.'
-        })
+          practitioner_id: session?.id || 'DR-AYUSH-01',
+          comment: verifyComment || 'Verified by Practitioner',
+        }),
       });
-      if (!res.ok) throw new Error('Verification failed');
-      setVerifyComment('');
-      await loadCase(selectedCase.session.session_id);
-      fetchQueue();
-    } catch (err: any) {
-      alert(err.message);
+      if (res.ok) {
+        selectCase(sid);
+        refreshDoctorQueue();
+        setFhirError('');
+      }
+    } catch {
+      console.error('Failed to execute verification action');
     }
   };
 
-  const submitAyushAssessment = async () => {
+  const saveAyush = async () => {
     if (!selectedCase) return;
+    const sid = selectedCase.session.session_id;
     try {
-      const res = await fetch(`${API}/api/v1/sessions/${selectedCase.session.session_id}/ayush`, {
+      const res = await fetch(`${API}/api/v1/sessions/${sid}/ayush`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -198,510 +279,289 @@ export default function VitalXPrototype() {
           sattva: ayushSattva,
           ahara_shakti: ayushAhara,
           vyayama_shakti: ayushVyayama,
-          vaya: ayushVaya
-        })
+          vaya: ayushVaya,
+        }),
       });
-      if (!res.ok) throw new Error('Failed to save AYUSH assessment');
-      alert('AYUSH Dashavidha assessment saved successfully!');
-      loadCase(selectedCase.session.session_id);
-    } catch (err: any) {
-      alert(err.message);
+      if (res.ok) {
+        selectCase(sid);
+      }
+    } catch {
+      console.error('Failed to save AYUSH assessment');
     }
   };
 
-  const exportFhirBundle = async () => {
+  const exportFhir = async () => {
     if (!selectedCase) return;
+    const sid = selectedCase.session.session_id;
     setFhirError('');
     setFhirBundle(null);
     try {
-      const res = await fetch(`${API}/api/v1/sessions/${selectedCase.session.session_id}/fhir`);
+      const res = await fetch(`${API}/api/v1/sessions/${sid}/fhir`);
+      const data = await res.json();
       if (!res.ok) {
-        const errorData = await res.json();
-        const reason = typeof errorData.detail === 'object' ? errorData.detail.reason : errorData.detail;
-        setFhirError(reason || 'Export blocked due to unresolved clinical contradictions.');
-        return;
+        setFhirError(data.detail?.reason || data.detail?.message || 'Export Blocked');
+      } else {
+        setFhirBundle(data);
       }
-      const bundle = await res.json();
-      setFhirBundle(bundle);
-    } catch (err: any) {
-      setFhirError('Failed to fetch FHIR bundle.');
+    } catch {
+      setFhirError('Failed to request FHIR export from API');
     }
   };
 
-  const resetSessionDemo = async () => {
-    if (!selectedCase) return;
+  const loadDemoScenario = async (scenario: string) => {
+    setLoadingDemo(true);
     try {
-      const res = await fetch(`${API}/api/v1/sessions/${selectedCase.session.session_id}/reset`, {
-        method: 'POST'
+      const res = await fetch(`${API}/api/v1/demo/load/${scenario}`, {
+        method: 'POST',
       });
-      if (!res.ok) throw new Error('Reset failed');
-      alert('Session reset successfully for clean demo re-evaluation!');
-      loadCase(selectedCase.session.session_id);
-      fetchQueue();
-    } catch (err: any) {
-      alert(err.message);
+      const data = await res.json();
+      if (res.ok) {
+        setSessionId(data.session_id);
+        setPatientId(data.patient_id);
+        setStatusMsg(`Demo Scenario ${scenario} loaded! Session: ${data.session_id}`);
+        setPatientStep(4);
+        await refreshDoctorQueue();
+        await selectCase(data.session_id);
+      }
+    } catch {
+      setStatusMsg(`Failed to load scenario ${scenario}`);
+    } finally {
+      setLoadingDemo(false);
+    }
+  };
+
+  const resetCurrentSession = async () => {
+    if (!sessionId) return;
+    try {
+      const res = await fetch(`${API}/api/v1/sessions/${sessionId}/reset`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        setStatusMsg('Session claims reset cleanly.');
+        setSelectedCase(null);
+        setFhirBundle(null);
+        setFhirError('');
+        setPatientStep(1);
+        setDocUploaded(false);
+        setRedFlags([]);
+        setRoutingState('NORMAL');
+        refreshDoctorQueue();
+      }
+    } catch {
+      setStatusMsg('Failed to reset session');
     }
   };
 
   useEffect(() => {
-    if (mode === 'doctor') {
-      fetchQueue();
-      const interval = setInterval(fetchQueue, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [mode]);
+    refreshDoctorQueue();
+  }, []);
 
   return (
-    <div className="app-container">
-      {/* Top Header Bar */}
-      <header className="app-header">
-        <div className="brand-title">
-          <span>🌿 VITAL-X</span>
-          <span className="brand-sub">SIH26047 Clinical Case-Taking</span>
-        </div>
-        <div className="nav-tabs">
-          <button
-            onClick={() => setMode('patient')}
-            className={`nav-tab ${mode === 'patient' ? 'active' : ''}`}
-          >
-            Patient Kiosk Mode
-          </button>
-          <button
-            onClick={() => setMode('doctor')}
-            className={`nav-tab ${mode === 'doctor' ? 'active' : ''}`}
-          >
-            Practitioner Workspace
-          </button>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[var(--bg-app)] text-[var(--text-primary)] flex flex-col font-sans transition-colors duration-200">
+      {/* App Header */}
+      <AppHeader
+        mode={mode === 'landing' ? 'patient' : mode}
+        setMode={(newMode) => setMode(newMode)}
+        queueCount={queue.length}
+        onResetSession={resetCurrentSession}
+        sessionId={sessionId}
+        locale={locale}
+        setLocale={setLocale}
+        session={session}
+        onLogout={handleLogout}
+      />
 
-      {mode === 'patient' ? (
-        /* PATIENT KIOSK MODE — Accessible, single-action focused, large touch targets */
-        <div style={{ maxWidth: '580px', margin: '10px auto 0 auto' }}>
-          
-          {/* Header Bar: Multilingual Choice */}
-          <div className="card" style={{ textAlign: 'center', padding: '16px 20px', marginBottom: '16px' }}>
-            <span className="form-label" style={{ marginBottom: '8px' }}>Select Language / ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ / भाषा चुनें</span>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
-              <button
-                onClick={() => setLanguage('kn-IN')}
-                className={`btn btn-sm ${language === 'kn-IN' ? 'btn-emerald' : 'btn-dark'}`}
-                style={{ padding: '8px 18px', fontSize: '13px' }}
-              >
-                ಕನ್ನಡ
-              </button>
-              <button
-                onClick={() => setLanguage('hi-IN')}
-                className={`btn btn-sm ${language === 'hi-IN' ? 'btn-emerald' : 'btn-dark'}`}
-                style={{ padding: '8px 18px', fontSize: '13px' }}
-              >
-                हिन्दी
-              </button>
-              <button
-                onClick={() => setLanguage('en-IN')}
-                className={`btn btn-sm ${language === 'en-IN' ? 'btn-emerald' : 'btn-dark'}`}
-                style={{ padding: '8px 18px', fontSize: '13px' }}
-              >
-                English
-              </button>
-            </div>
-          </div>
-
-          {!consentGiven ? (
-            /* Consent & Patient ID Card */
-            <div className="card" style={{ padding: '28px 24px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 12px 0', color: '#f8fafc' }}>
-                Welcome to VITAL-X Patient Intake
-              </h2>
-              <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: '1.6', margin: '0 0 20px 0' }}>
-                VITAL-X will use your voice and document information to prepare a structured clinical history for your AYUSH practitioner.
-              </p>
-
-              <div className="form-group">
-                <label className="form-label">Patient ABHA Number / ID</label>
-                <input
-                  value={patientId}
-                  onChange={e => setPatientId(e.target.value)}
-                  className="form-input"
-                  style={{ padding: '12px', fontSize: '14px' }}
-                />
-              </div>
-
-              <button onClick={startSession} className="btn btn-emerald" style={{ padding: '14px', fontSize: '14px' }}>
-                ✓ I Understand & Give Consent
-              </button>
-            </div>
-          ) : (
-            /* Conversational History Capture Card */
-            <div className="card" style={{ textAlign: 'center', padding: '28px 24px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 6px 0', color: '#f8fafc' }}>
-                How are you feeling today?
-              </h2>
-              <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 24px 0' }}>
-                Speak or type your symptoms. Your practitioner will review your response.
-              </p>
-
-              {/* Speech Recognition Target Button */}
-              <div style={{ marginBottom: '24px' }}>
-                <button
-                  onClick={startVoiceInput}
-                  className={`btn ${micState === 'LISTENING' ? 'mic-listening' : 'btn-dark'}`}
-                  style={{
-                    width: '110px',
-                    height: '110px',
-                    borderRadius: '55px',
-                    fontSize: '32px',
-                    margin: '0 auto 12px auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  🎙️
-                </button>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: micState === 'LISTENING' ? '#ef4444' : '#94a3b8' }}>
-                  {micState === 'READY' && 'Tap to speak'}
-                  {micState === 'LISTENING' && 'Listening...'}
-                  {micState === 'PROCESSING' && 'Understanding your response...'}
-                  {micState === 'COMPLETE' && 'Transcript recorded'}
-                  {micState === 'FALLBACK' && 'Voice input unavailable — use text input'}
-                </div>
-              </div>
-
-              {/* Guided Touch Interaction Options */}
-              <div style={{ background: '#0f172a', padding: '14px', borderRadius: '8px', border: '1px solid #1e293b', marginBottom: '20px', textAlign: 'left' }}>
-                <span className="form-label" style={{ marginBottom: '8px' }}>Guided Touch Options (Pain Location)</span>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                  {['Joints', 'Knee', 'Back', 'Chest'].map(loc => (
-                    <button
-                      key={loc}
-                      onClick={() => setSelectedLocation(loc)}
-                      className={`btn btn-sm ${selectedLocation === loc ? 'btn-emerald' : 'btn-dark'}`}
-                    >
-                      {loc}
-                    </button>
+      {/* Main Body */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 space-y-6">
+        {/* Landing / Role Entry */}
+        {mode === 'landing' ? (
+          <RoleSelectionLanding
+            onSelectRole={(selectedRole) => setMode(selectedRole)}
+            locale={locale}
+            setLocale={setLocale}
+            tr={tr}
+          />
+        ) : mode === 'patient' ? (
+          <>
+            {/* Minimal Subtle Step Indicator for Patient Kiosk */}
+            <div className="max-w-2xl mx-auto">
+              <div className="flex items-center justify-between px-4 py-2 bg-[var(--bg-surface-elevated)] border border-[var(--border-subtle)] rounded-full text-xs font-mono-code">
+                {/* Back button — only visible from step 2 onward */}
+                {patientStep > 1 && stepHistory.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    className="text-emerald-400 hover:text-emerald-300 font-bold transition-clinical flex items-center space-x-1"
+                    aria-label="Go back to previous step"
+                  >
+                    <span>←</span>
+                    <span className="hidden sm:inline">Back</span>
+                  </button>
+                ) : (
+                  <span className="text-emerald-400 font-bold">Step {patientStep} of 5</span>
+                )}
+                <div className="flex items-center space-x-1.5">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <span
+                      key={s}
+                      className={`w-2.5 h-2.5 rounded-full transition-clinical ${
+                        s === patientStep
+                          ? 'bg-emerald-500 ring-2 ring-emerald-400/40 scale-125'
+                          : s < patientStep
+                          ? 'bg-emerald-700'
+                          : 'bg-[var(--border-medium)]'
+                      }`}
+                    />
                   ))}
                 </div>
-                <span className="form-label" style={{ marginBottom: '8px' }}>Duration</span>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {['1 day', '1 week', '3 months'].map(dur => (
-                    <button
-                      key={dur}
-                      onClick={() => setSelectedDuration(dur)}
-                      className={`btn btn-sm ${selectedDuration === dur ? 'btn-emerald' : 'btn-dark'}`}
-                    >
-                      {dur}
-                    </button>
-                  ))}
-                </div>
+                <span className="text-[var(--text-tertiary)] hidden sm:inline">
+                  {patientStep === 1
+                    ? 'Identify'
+                    : patientStep === 2
+                    ? 'Converse'
+                    : patientStep === 3
+                    ? 'Scan'
+                    : patientStep === 4
+                    ? 'Summarize'
+                    : 'Consult'}
+                </span>
               </div>
-
-              {/* Transcript Field */}
-              <div className="form-group" style={{ textAlign: 'left' }}>
-                <label className="form-label">Transcript / Patient Statement</label>
-                <textarea
-                  value={statement}
-                  onChange={e => setStatement(e.target.value)}
-                  rows={3}
-                  className="form-textarea"
-                />
-              </div>
-
-              <button onClick={submitPatientClaim} className="btn btn-emerald" style={{ padding: '12px', fontSize: '14px', marginBottom: '16px' }}>
-                Submit Clinical Statement
-              </button>
-
-              {/* Document Digitization Upload Button */}
-              <div style={{ paddingTop: '16px', borderTop: '1px solid #1e293b', textAlign: 'left' }}>
-                <span className="form-label">Medical Document Digitization</span>
-                <button onClick={uploadMockPrescription} className="btn btn-amber" style={{ padding: '12px', fontSize: '13px' }}>
-                  📄 Upload Previous Prescription Document (Prototype OCR Adapter)
-                </button>
-                <p style={{ fontSize: '11px', color: '#94a3b8', margin: '6px 0 0 0' }}>
-                  Ingests historical prescription containing active diabetes record (Triggers Golden-Path Contradiction).
-                </p>
-              </div>
-
-              {statusMsg && (
-                <div className="alert-box alert-success" style={{ marginTop: '16px', textAlign: 'left' }}>
-                  {statusMsg}
-                </div>
-              )}
             </div>
-          )}
-        </div>
-      ) : (
-        /* PRACTITIONER WORKSPACE MODE — Information-dense, clinical workspace */
-        <div className="dashboard-grid">
-          {/* Left Column: Case Queue */}
-          <div className="card" style={{ height: 'fit-content' }}>
-            <h3 className="card-header">
-              <span>Case Queue</span>
-              <span className="status-badge badge-tag">{queue.length} Active</span>
-            </h3>
 
-            {queue.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#94a3b8' }}>No active cases found.</p>
-            ) : (
-              queue.map(q => (
-                <div
-                  key={q.session_id}
-                  onClick={() => loadCase(q.session_id)}
-                  className={`queue-item ${selectedCase?.session?.session_id === q.session_id ? 'active' : ''}`}
-                >
-                  <div style={{ fontWeight: 600, fontSize: '13px', color: '#f8fafc', marginBottom: '2px' }}>
-                    {q.patient_id}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
-                    Language: {q.language}
-                  </div>
-                  <span className={`status-badge ${q.truth_status === 'CONFLICT' ? 'badge-conflict' : 'badge-clear'}`}>
-                    {q.truth_status === 'CONFLICT' ? '⚠ CONFLICT' : '✓ VERIFIED'}
-                  </span>
-                </div>
-              ))
+            {/* Step Views */}
+            {patientStep === 1 && (
+              <IdentifyStep
+                patientId={patientId}
+                setPatientId={setPatientId}
+                abhaId={abhaId}
+                setAbhaId={setAbhaId}
+                locale={locale}
+                setLocale={setLocale}
+                tr={tr}
+                consentGiven={consentGiven}
+                setConsentGiven={setConsentGiven}
+                onInitializeSession={startSession}
+                loading={loadingSession}
+              />
             )}
-          </div>
-
-          {/* Main Column: Case Inspection & Truth Engine Surface */}
-          <div>
-            {selectedCase ? (
-              <div>
-                {/* Case Header */}
-                <div className="card" style={{ padding: '16px 20px', marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#f8fafc' }}>
-                        {selectedCase.session.patient_id}
-                      </h2>
-                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                        Patient Case • {selectedCase.session.language} • Consent Granted
-                      </span>
-                    </div>
-                    <button onClick={resetSessionDemo} className="btn btn-dark btn-sm">
-                      🔄 Reset Demo
-                    </button>
-                  </div>
-                </div>
-
-                {/* Hero Truth Engine Conflict Surface */}
-                <div className={`truth-surface ${selectedCase.truth_state.status === 'CONFLICT' ? 'truth-conflict-banner' : 'truth-clear-banner'}`}>
-                  {selectedCase.truth_state.status === 'CONFLICT' ? (
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
-                        ⚠ CLINICAL VERIFICATION REQUIRED — Diabetes history
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#fca5a5' }}>
-                        Two sources contain conflicting information.
-                      </div>
-
-                      {/* Evidence Comparison Grid */}
-                      {selectedCase.truth_state.conflicts?.map((conf: any, idx: number) => (
-                        <div key={idx} className="evidence-grid">
-                          <div className="evidence-card conflict-source">
-                            <span className="status-badge badge-tag" style={{ marginBottom: '6px' }}>PATIENT VOICE</span>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>
-                              "{conf.evidence[0]?.value || 'No Diabetes'}"
-                            </div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-                              Source: Patient Voice • Language: {selectedCase.session.language} • Unverified
-                            </div>
-                          </div>
-
-                          <div className="evidence-card conflict-source">
-                            <span className="status-badge badge-tag" style={{ marginBottom: '6px' }}>PREVIOUS DOCUMENT</span>
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>
-                              "{conf.evidence[1]?.value || 'Diabetes Medication Detected'}"
-                            </div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-                              Source: Previous Document • Adapter: Prototype OCR • Unverified
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-
-                      <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                        <span className="status-badge badge-conflict">EXPORT BLOCKED — Practitioner decision required</span>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button
-                            onClick={() => verifyClaimAction(selectedCase.claims[0]?.claim_id, 'reject_claim')}
-                            className="btn btn-emerald btn-sm"
-                          >
-                            Accept Document Claim
-                          </button>
-                          <button
-                            onClick={() => verifyClaimAction(selectedCase.claims[0]?.claim_id, 'accept_claim')}
-                            className="btn btn-dark btn-sm"
-                          >
-                            Accept Patient Claim
-                          </button>
-                          <button
-                            onClick={() => verifyClaimAction(selectedCase.claims[0]?.claim_id, 'keep_both')}
-                            className="btn btn-dark btn-sm"
-                          >
-                            Keep Both
-                          </button>
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: '10px' }}>
-                        <input
-                          placeholder="Practitioner review note (e.g. Overridden by prescription record 2025)..."
-                          value={verifyComment}
-                          onChange={e => setVerifyComment(e.target.value)}
-                          className="form-input"
-                          style={{ fontSize: '12px', padding: '6px 10px' }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          ✓ VERIFIED
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#6ee7b7' }}>
-                          Conflict resolved • Practitioner review complete
-                        </div>
-                      </div>
-                      <span className="status-badge badge-clear">EXPORT READY</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Structured Clinical Claims & Traceable Provenance */}
-                <div className="card">
-                  <h3 className="card-header">
-                    <span>Source Traceability & Provenance</span>
-                    <span className="status-badge badge-tag">{selectedCase.claims.length} Claims</span>
-                  </h3>
-
-                  {selectedCase.claims.map((c: any) => (
-                    <div key={c.claim_id} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '14px', marginBottom: '10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                        <div>
-                          <strong style={{ fontSize: '13px', color: '#f8fafc' }}>{c.concept_code}: {c.value}</strong>
-                        </div>
-                        <span className={`status-badge ${c.verification_status?.includes('REJECT') ? 'badge-conflict' : c.verification_status?.includes('ACCEPT') ? 'badge-clear' : 'badge-tag'}`}>
-                          {c.verification_status}
-                        </span>
-                      </div>
-
-                      <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>
-                        Source: <strong>{c.source_type}</strong> ({c.input_mode}) • Evidence: <em>"{c.evidence_text}"</em>
-                      </div>
-
-                      {c.namaste_term && (
-                        <div style={{ fontSize: '11px', color: '#10b981', background: '#062c21', padding: '4px 8px', borderRadius: '4px', display: 'inline-block' }}>
-                          🏷️ NAMASTE Candidate: <strong>{c.namaste_term}</strong> ({c.namaste_code}) • Status: Candidate • Practitioner confirmation
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* AYUSH Dashavidha Assessment Panel */}
-                <div className="card">
-                  <h3 className="card-header">
-                    <span>AYUSH Dashavidha Assessment</span>
-                    <button onClick={submitAyushAssessment} className="btn btn-emerald btn-sm">
-                      Save Assessment
-                    </button>
-                  </h3>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label className="form-label">Prakriti (ಪ್ರಕೃತಿ)</label>
-                      <select value={ayushPrakriti} onChange={e => setAyushPrakriti(e.target.value)} className="form-select">
-                        <option value="Vata-Pitta">Vata-Pitta (ವಾತ-ಪಿತ್ತ)</option>
-                        <option value="Pitta-Kapha">Pitta-Kapha (ಪಿತ್ತ-ಕಫ)</option>
-                        <option value="Kapha-Vata">Kapha-Vata (ಕಫ-ವಾತ)</option>
-                        <option value="Sama">Sama (ಸಮ)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="form-label">Vikriti (ವಿಕೃತಿ)</label>
-                      <input value={ayushVikriti} onChange={e => setAyushVikriti(e.target.value)} className="form-input" />
-                    </div>
-
-                    <div>
-                      <label className="form-label">Sara (ಸಾರ)</label>
-                      <input value={ayushSara} onChange={e => setAyushSara(e.target.value)} className="form-input" />
-                    </div>
-
-                    <div>
-                      <label className="form-label">Samhanana (ಸಂಹನನ)</label>
-                      <input value={ayushSamhanana} onChange={e => setAyushSamhanana(e.target.value)} className="form-input" />
-                    </div>
-
-                    <div>
-                      <label className="form-label">Pramana (ಪ್ರಮಾಣ)</label>
-                      <input value={ayushPramana} onChange={e => setAyushPramana(e.target.value)} className="form-input" />
-                    </div>
-
-                    <div>
-                      <label className="form-label">Satmya (ಸಾತ್ಮ್ಯ)</label>
-                      <input value={ayushSatmya} onChange={e => setAyushSatmya(e.target.value)} className="form-input" />
-                    </div>
-
-                    <div>
-                      <label className="form-label">Sattva (ಸತ್ತ್ವ)</label>
-                      <input value={ayushSattva} onChange={e => setAyushSattva(e.target.value)} className="form-input" />
-                    </div>
-
-                    <div>
-                      <label className="form-label">Vaya (ವಯಸ್ಸು)</label>
-                      <input value={ayushVaya} onChange={e => setAyushVaya(e.target.value)} className="form-input" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* FHIR Export Section */}
-                <div className="card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: '14px', color: '#f8fafc' }}>FHIR R4 / ABDM Interoperability Export</h4>
-                      <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>
-                        {selectedCase.truth_state.export_blocked ? 'FHIR EXPORT — Blocked — Resolve outstanding verification first.' : 'FHIR EXPORT — ✓ Ready — FHIR R4 Bundle'}
-                      </p>
-                    </div>
-                    <button
-                      onClick={exportFhirBundle}
-                      disabled={selectedCase.truth_state.export_blocked}
-                      className={`btn btn-sm ${selectedCase.truth_state.export_blocked ? 'btn-dark' : 'btn-emerald'}`}
-                      style={{ opacity: selectedCase.truth_state.export_blocked ? 0.5 : 1 }}
-                    >
-                      {selectedCase.truth_state.export_blocked ? 'Export Blocked' : 'Export Bundle'}
-                    </button>
-                  </div>
-
-                  {fhirError && (
-                    <div className="alert-box alert-danger" style={{ marginTop: '14px', marginBottom: 0 }}>
-                      🚫 <strong>FHIR EXPORT BLOCKED:</strong> {fhirError}
-                    </div>
-                  )}
-
-                  {fhirBundle && (
-                    <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid #1e293b' }}>
-                      <pre style={{ background: '#090d16', padding: '12px', borderRadius: '8px', fontSize: '11px', color: '#34d399', overflowX: 'auto', maxHeight: '250px' }}>
-                        {JSON.stringify(fhirBundle, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
-                <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
-                  Select a case from the queue to inspect evidence provenance, resolve clinical contradictions, and export FHIR records.
-                </p>
-              </div>
+            {patientStep === 2 && (
+              <ConverseStep
+                sessionId={sessionId}
+                locale={locale}
+                tr={tr}
+                statement={statement}
+                setStatement={setStatement}
+                micState={micState}
+                onStartVoiceInput={startVoiceInput}
+                onSubmitAnswer={submitAnswer}
+                redFlags={redFlags}
+                routingState={routingState}
+                onBack={goBack}
+              />
             )}
+            {patientStep === 3 && (
+              <ScanStep
+                tr={tr}
+                onUploadDocument={uploadMockDoc}
+                onBack={goBack}
+                loading={false}
+                docUploaded={docUploaded}
+              />
+            )}
+            {patientStep === 4 && (
+              <SummarizeStep
+                tr={tr}
+                truthState={selectedCase?.truth_state}
+                routingState={routingState}
+                onBack={goBack}
+                onGoToConsult={() => {
+                  goToStep(5);
+                  setMode('doctor');
+                }}
+              />
+            )}
+
+            {patientStep === 5 && (
+              <ConsultStep
+                selectedCase={selectedCase}
+                verifyComment={verifyComment}
+                setVerifyComment={setVerifyComment}
+                onVerifyClaim={verifyClaim}
+                ayushPrakriti={ayushPrakriti}
+                setAyushPrakriti={setAyushPrakriti}
+                ayushVikriti={ayushVikriti}
+                setAyushVikriti={setAyushVikriti}
+                ayushSara={ayushSara}
+                setAyushSara={setAyushSara}
+                ayushSamhanana={ayushSamhanana}
+                setAyushSamhanana={setAyushSamhanana}
+                ayushPramana={ayushPramana}
+                setAyushPramana={setAyushPramana}
+                ayushSatmya={ayushSatmya}
+                setAyushSatmya={setAyushSatmya}
+                ayushSattva={ayushSattva}
+                setAyushSattva={setAyushSattva}
+                ayushAhara={ayushAhara}
+                setAyushAhara={setAyushAhara}
+                ayushVyayama={ayushVyayama}
+                setAyushVyayama={setAyushVyayama}
+                ayushVaya={ayushVaya}
+                setAyushVaya={setAyushVaya}
+                onSaveAyush={saveAyush}
+                fhirError={fhirError}
+                fhirBundle={fhirBundle}
+                onExportFhir={exportFhir}
+                auditTrail={auditTrail}
+              />
+            )}
+          </>
+        ) : !session ? (
+          <PractitionerLogin onLogin={handleLogin} />
+        ) : (
+          <div className="space-y-6">
+            {/* Scenario Picker for Demo Mode */}
+            <DemoScenarioPicker onSelectScenario={loadDemoScenario} loading={loadingDemo} />
+
+            <PractitionerWorkspace
+              queue={queue}
+              selectedCase={selectedCase}
+              onSelectCase={selectCase}
+              onRefreshQueue={refreshDoctorQueue}
+              verifyComment={verifyComment}
+              setVerifyComment={setVerifyComment}
+              onVerifyClaim={verifyClaim}
+              ayushPrakriti={ayushPrakriti}
+              setAyushPrakriti={setAyushPrakriti}
+              ayushVikriti={ayushVikriti}
+              setAyushVikriti={setAyushVikriti}
+              ayushSara={ayushSara}
+              setAyushSara={setAyushSara}
+              ayushSamhanana={ayushSamhanana}
+              setAyushSamhanana={setAyushSamhanana}
+              ayushPramana={ayushPramana}
+              setAyushPramana={setAyushPramana}
+              ayushSatmya={ayushSatmya}
+              setAyushSatmya={setAyushSatmya}
+              ayushSattva={ayushSattva}
+              setAyushSattva={setAyushSattva}
+              ayushAhara={ayushAhara}
+              setAyushAhara={setAyushAhara}
+              ayushVyayama={ayushVyayama}
+              setAyushVyayama={setAyushVyayama}
+              ayushVaya={ayushVaya}
+              setAyushVaya={setAyushVaya}
+              onSaveAyush={saveAyush}
+              fhirError={fhirError}
+              fhirBundle={fhirBundle}
+              onExportFhir={exportFhir}
+              auditTrail={auditTrail}
+            />
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Developer Diagnostics Layer */}
+        {mode === 'doctor' && session && showDeveloperTools && <SystemDiagnostics />}
+      </main>
     </div>
   );
 }
